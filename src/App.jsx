@@ -26,6 +26,7 @@ import Performance from "./pages/student/Performance";
 import QA from "./pages/student/QA";
 import Community from "./pages/student/Community";
 import LandingPage from "./pages/LandingPage";
+import NotFound from "./pages/NotFound";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminStudents from "./pages/admin/AdminStudents";
@@ -106,7 +107,7 @@ export default function App() {
           <Route path="live-classes" element={<AdminLiveClasses />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
       </ToastProvider>
     </BrowserRouter>

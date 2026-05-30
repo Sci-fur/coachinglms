@@ -5,6 +5,7 @@ import client from "../../api/client";
 import {
   Loader2, Plus, Pencil, Trash2, ChevronDown, Play, FileText,
   ArrowLeft, BookOpen, GripVertical, X, Film,
+  ArrowUp, ArrowDown,
 } from "lucide-react";
 
 export default function AdminCourseContent() {
@@ -89,6 +90,41 @@ export default function AdminCourseContent() {
     },
   });
 
+  const reorderChapters = useMutation({
+    mutationFn: (orders) => client.put("/content/admin/chapters/reorder", { orders }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-chapters", courseId] }),
+  });
+
+  const reorderLessons = useMutation({
+    mutationFn: (orders) => client.put("/content/admin/lessons/reorder", { orders }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-lessons", vars[0]?.chapterId || ""] });
+    },
+  });
+
+  function moveChapter(index, direction) {
+    const list = [...chapters];
+    const target = index + direction;
+    if (target < 0 || target >= list.length) return;
+    const temp = list[index].order;
+    reorderChapters.mutate([
+      { id: list[index]._id, order: list[target].order },
+      { id: list[target]._id, order: temp },
+    ]);
+  }
+
+  function moveLesson(lessons, index, direction) {
+    const list = [...lessons];
+    const target = index + direction;
+    if (target < 0 || target >= list.length) return;
+    const chapterId = list[index].chapter || list[index].chapterId;
+    const temp = list[index].order;
+    reorderLessons.mutate([
+      { id: list[index]._id, order: list[target].order, chapterId },
+      { id: list[target]._id, order: temp },
+    ]);
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -123,12 +159,16 @@ export default function AdminCourseContent() {
             <p className="text-xs text-slate-400 mt-1">Add your first chapter to start building course content</p>
           </div>
         ) : (
-          chapters.map((chapter) => (
+          chapters.map((chapter, ci) => (
             <ChapterBlock
               key={chapter._id}
               chapter={chapter}
+              index={ci}
+              total={chapters.length}
               openChapter={openChapter}
               setOpenChapter={setOpenChapter}
+              onMoveUp={() => moveChapter(ci, -1)}
+              onMoveDown={() => moveChapter(ci, 1)}
               onEdit={(ch) => setChapterForm({ open: true, title: ch.title, description: ch.description, editing: ch._id })}
               onDelete={(id) => deleteChapter.mutate(id)}
               onAddLesson={(chId) => setLessonForm({ open: true, chapterId: chId, title: "", type: "video", videoUrl: "", articleBody: "", duration: "", editing: null })}
@@ -142,6 +182,7 @@ export default function AdminCourseContent() {
               fetchLessons={fetchLessons}
               createLesson={createLesson}
               updateLesson={updateLesson}
+              moveLesson={moveLesson}
             />
           ))
         )}
@@ -307,7 +348,7 @@ export default function AdminCourseContent() {
   );
 }
 
-function ChapterBlock({ chapter, openChapter, setOpenChapter, onEdit, onDelete, onAddLesson, onEditLesson, onDeleteLesson, fetchLessons, createLesson, updateLesson }) {
+function ChapterBlock({ chapter, index, total, openChapter, setOpenChapter, onMoveUp, onMoveDown, onEdit, onDelete, onAddLesson, onEditLesson, onDeleteLesson, fetchLessons, createLesson, updateLesson, moveLesson }) {
   const isOpen = openChapter === chapter._id;
   const { data: lessons, isLoading } = fetchLessons(chapter._id);
 
@@ -328,14 +369,21 @@ function ChapterBlock({ chapter, openChapter, setOpenChapter, onEdit, onDelete, 
             </div>
           </button>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 ml-3">
-          <button onClick={() => onAddLesson(chapter._id)} className="h-7 w-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors" title="Add lesson">
+        <div className="flex items-center gap-0.5 shrink-0 ml-3">
+          <button onClick={onMoveUp} disabled={index === 0} className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-20 disabled:cursor-default" title="Move up">
+            <ArrowUp className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={onMoveDown} disabled={index === total - 1} className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-20 disabled:cursor-default" title="Move down">
+            <ArrowDown className="h-3.5 w-3.5" />
+          </button>
+          <div className="w-px h-5 bg-slate-200 mx-1" />
+          <button onClick={() => onAddLesson(chapter._id)} className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors" title="Add lesson">
             <Plus className="h-3.5 w-3.5" />
           </button>
-          <button onClick={() => onEdit(chapter)} className="h-7 w-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-colors" title="Edit chapter">
+          <button onClick={() => onEdit(chapter)} className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit chapter">
             <Pencil className="h-3.5 w-3.5" />
           </button>
-          <button onClick={() => onDelete(chapter._id)} className="h-7 w-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors" title="Delete chapter">
+          <button onClick={() => onDelete(chapter._id)} className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete chapter">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -373,7 +421,14 @@ function ChapterBlock({ chapter, openChapter, setOpenChapter, onEdit, onDelete, 
                       <span className="text-[10px] text-slate-400 shrink-0">{lesson.duration}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0 ml-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5 shrink-0 ml-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => moveLesson(lessons, lessons.indexOf(lesson), -1)} disabled={lessons.indexOf(lesson) === 0} className="h-6 w-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-20 disabled:cursor-default" title="Move up">
+                      <ArrowUp className="h-3 w-3" />
+                    </button>
+                    <button onClick={() => moveLesson(lessons, lessons.indexOf(lesson), 1)} disabled={lessons.indexOf(lesson) === lessons.length - 1} className="h-6 w-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-20 disabled:cursor-default" title="Move down">
+                      <ArrowDown className="h-3 w-3" />
+                    </button>
+                    <div className="w-px h-4 bg-slate-200 mx-0.5" />
                     <button onClick={() => onEditLesson(lesson)} className="h-6 w-6 rounded flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit">
                       <Pencil className="h-3 w-3" />
                     </button>
