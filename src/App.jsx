@@ -29,6 +29,7 @@ import LandingPage from "./pages/LandingPage";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminStudents from "./pages/admin/AdminStudents";
+import AdminEnrollments from "./pages/admin/AdminEnrollments";
 import AdminBatches from "./pages/admin/AdminBatches";
 import AdminSubjects from "./pages/admin/AdminSubjects";
 import AdminCourses from "./pages/admin/AdminCourses";
@@ -96,6 +97,7 @@ export default function App() {
         >
           <Route index element={<AdminDashboard />} />
           <Route path="students" element={<AdminStudents />} />
+          <Route path="enrollments" element={<AdminEnrollments />} />
           <Route path="batches" element={<AdminBatches />} />
           <Route path="subjects" element={<AdminSubjects />} />
           <Route path="courses" element={<AdminCourses />} />

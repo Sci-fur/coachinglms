@@ -11,6 +11,7 @@ import {
   FolderKanban,
   Video,
   FileCheck,
+  CreditCard,
   LogOut,
   Menu,
   X,
@@ -20,6 +21,7 @@ import {
 const navItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/admin/students", icon: Users, label: "Students" },
+  { to: "/admin/enrollments", icon: CreditCard, label: "Enrollments" },
   { to: "/admin/batches", icon: FolderKanban, label: "Batches" },
   { to: "/admin/subjects", icon: BookOpen, label: "Subjects" },
   { to: "/admin/courses", icon: GraduationCap, label: "Courses" },
