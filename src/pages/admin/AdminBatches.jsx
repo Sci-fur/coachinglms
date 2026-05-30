@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import client from "../../api/client";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Loader2, Search, Plus, FolderKanban, Users, X, Clock } from "lucide-react";
+import { Loader2, Search, Plus, Pencil, FolderKanban, Users, X, Clock } from "lucide-react";
 
 const defaultForm = { name: "", classLevel: "6", academicGroup: "n/a", capacity: "" };
 
@@ -39,12 +39,14 @@ export default function AdminBatches() {
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [formError, setFormError] = useState("");
 
   useEffect(() => {
     if (!drawerOpen) {
       setTimeout(() => {
+        setEditing(null);
         setForm(defaultForm);
         setFormError("");
       }, 200);
@@ -75,14 +77,40 @@ export default function AdminBatches() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["batches"] }),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...payload }) => client.put(`/admin/batches/${id}`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      setDrawerOpen(false);
+    },
+    onError: (err) => setFormError(err.response?.data?.message || "Failed to update"),
+  });
+
+  const openEdit = (batch) => {
+    setEditing(batch._id);
+    setForm({
+      name: batch.name,
+      classLevel: batch.classLevel?.toString() || "6",
+      academicGroup: batch.academicGroup || "n/a",
+      capacity: batch.capacity ? String(batch.capacity) : "",
+    });
+    setFormError("");
+    setDrawerOpen(true);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setFormError("");
-    createMutation.mutate({
+    const payload = {
       ...form,
       classLevel: Number(form.classLevel),
       capacity: form.capacity === "" ? 0 : Number(form.capacity),
-    });
+    };
+    if (editing) {
+      updateMutation.mutate({ id: editing, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
   };
 
   const filtered = batches?.filter((b) =>
@@ -190,7 +218,7 @@ export default function AdminBatches() {
 
                 {/* Card header */}
                 <div className="px-4 pt-4 pb-3">
-                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1 min-w-0 flex-1">
                       <h3 className="text-sm font-bold text-slate-800 leading-snug">
                         {batch.name}
@@ -199,21 +227,30 @@ export default function AdminBatches() {
                         Class {batch.classLevel} &middot; {groupLabels[batch.academicGroup] || batch.academicGroup}
                       </p>
                     </div>
-                    <button
-                      onClick={() =>
-                        toggleMutation.mutate({ id: batch._id, isActive: !batch.isActive })
-                      }
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-all duration-200 shrink-0 cursor-pointer ${
-                        batch.isActive ? "bg-primary" : "bg-slate-300"
-                      }`}
-                      title={batch.isActive ? "Deactivate" : "Activate"}
-                    >
-                      <span
-                        className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                          batch.isActive ? "translate-x-[19px]" : "translate-x-[3px]"
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => openEdit(batch)}
+                        className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                        title="Edit"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          toggleMutation.mutate({ id: batch._id, isActive: !batch.isActive })
+                        }
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-all duration-200 shrink-0 cursor-pointer ${
+                          batch.isActive ? "bg-primary" : "bg-slate-300"
                         }`}
-                      />
-                    </button>
+                        title={batch.isActive ? "Deactivate" : "Activate"}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                            batch.isActive ? "translate-x-[19px]" : "translate-x-[3px]"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -266,7 +303,7 @@ export default function AdminBatches() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setDrawerOpen(false)} />
           <div className="absolute top-0 bottom-0 right-0 w-full max-w-md bg-white shadow-2xl flex flex-col animate-in">
             <div className="flex items-center justify-between px-6 h-14 border-b border-slate-200 shrink-0">
-              <h2 className="text-base font-bold text-slate-800">New batch</h2>
+              <h2 className="text-base font-bold text-slate-800">{editing ? "Edit batch" : "New batch"}</h2>
               <button
                 onClick={() => setDrawerOpen(false)}
                 className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -343,14 +380,16 @@ export default function AdminBatches() {
               <Button
                 type="button"
                 onClick={handleSubmit}
-                disabled={createMutation.isPending}
+                disabled={createMutation.isPending || updateMutation.isPending}
                 className="min-w-[100px]"
               >
-                {createMutation.isPending ? (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Creating...
+                    Saving...
                   </span>
+                ) : editing ? (
+                  "Update batch"
                 ) : (
                   "Create batch"
                 )}

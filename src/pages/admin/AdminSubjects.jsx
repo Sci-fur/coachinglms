@@ -23,6 +23,7 @@ export default function AdminSubjects() {
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [formError, setFormError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     if (!drawerOpen) {
@@ -60,6 +61,15 @@ export default function AdminSubjects() {
       setDrawerOpen(false);
     },
     onError: (err) => setFormError(err.response?.data?.message || "Failed"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => client.delete(`/admin/subjects/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subjects"] });
+      setDeleteConfirm(null);
+    },
+    onError: (err) => setFormError(err.response?.data?.message || "Failed to delete"),
   });
 
   const openCreate = () => {
@@ -186,6 +196,13 @@ export default function AdminSubjects() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
+                      <button
+                        onClick={() => setDeleteConfirm(subject._id)}
+                        className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -284,6 +301,16 @@ export default function AdminSubjects() {
                 )}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-xl shadow-xl px-5 py-3 flex items-center gap-4 text-sm">
+          <span>Delete this subject?</span>
+          <div className="flex gap-2">
+            <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium transition-colors cursor-pointer">Cancel</button>
+            <button onClick={() => deleteMutation.mutate(deleteConfirm)} className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-medium transition-colors cursor-pointer">Delete</button>
           </div>
         </div>
       )}
