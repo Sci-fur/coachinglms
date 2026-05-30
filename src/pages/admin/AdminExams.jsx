@@ -20,6 +20,8 @@ export default function AdminExams() {
   const [expandedTab, setExpandedTab] = useState("questions");
   const [gradeDrawer, setGradeDrawer] = useState(null);
   const [gradeMarks, setGradeMarks] = useState({});
+  const [editingQId, setEditingQId] = useState(null);
+  const [editQForm, setEditQForm] = useState({});
 
   const { data: courses } = useQuery({
     queryKey: ["admin-courses"],
@@ -84,6 +86,15 @@ export default function AdminExams() {
   const deleteQMutation = useMutation({
     mutationFn: (id) => client.delete(`/admin/exams/${expandedExam}/questions/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-questions", expandedExam] }),
+  });
+
+  const updateQMutation = useMutation({
+    mutationFn: ({ id, ...payload }) => client.put(`/admin/exams/${expandedExam}/questions/${id}`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-questions", expandedExam] });
+      setEditingQId(null);
+    },
+    onError: (err) => toast(err.response?.data?.message || "Update failed", "error"),
   });
 
   const gradeMutation = useMutation({
@@ -214,19 +225,81 @@ export default function AdminExams() {
                       ) : (
                         <div className="space-y-2">
                           {questions.map((q, i) => (
-                            <div key={q._id} className="flex items-start justify-between gap-3 bg-white rounded-lg border border-slate-200 px-4 py-2.5">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-slate-800">
-                                  <span className="text-slate-400 mr-1">{i + 1}.</span>
-                                  {q.questionText}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${q.type === "mcq" ? "bg-blue-50 text-blue-600" : "bg-amber-50 text-amber-600"}`}>{q.type}</span>
-                                  <span className="text-[10px] text-slate-400">{q.marks} marks</span>
+                            editingQId === q._id ? (
+                              <div key={q._id} className="bg-white rounded-lg border border-slate-200 px-4 py-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Editing question {i + 1}</span>
+                                  <button onClick={() => setEditingQId(null)} className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer">Cancel</button>
+                                </div>
+                                <input value={editQForm.questionText} onChange={(e) => setEditQForm({ ...editQForm, questionText: e.target.value })} className="w-full h-8 px-3 rounded-lg border border-slate-200 text-xs outline-none" placeholder="Question text" />
+                                <div className="flex gap-2">
+                                  <select value={editQForm.type} onChange={(e) => setEditQForm({ ...editQForm, type: e.target.value })} className="h-8 px-2 rounded-lg border border-slate-200 text-xs outline-none">
+                                    <option value="mcq">MCQ</option>
+                                    <option value="written">Written</option>
+                                  </select>
+                                  <input value={editQForm.marks} onChange={(e) => setEditQForm({ ...editQForm, marks: e.target.value })} className="w-16 h-8 px-2 rounded-lg border border-slate-200 text-xs outline-none" placeholder="Marks" />
+                                </div>
+                                {editQForm.type === "mcq" && (
+                                  <div className="space-y-1.5">
+                                    {editQForm.options?.map((o, oi) => (
+                                      <div key={oi} className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-slate-400 w-4">{o.label}.</span>
+                                        <input value={o.text} onChange={(e) => {
+                                          const opts = [...editQForm.options];
+                                          opts[oi] = { ...opts[oi], text: e.target.value };
+                                          setEditQForm({ ...editQForm, options: opts });
+                                        }} className="flex-1 h-7 px-2 rounded-lg border border-slate-200 text-xs outline-none" />
+                                      </div>
+                                    ))}
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-slate-400 w-4">✓</span>
+                                      <input value={editQForm.correctAnswer} onChange={(e) => setEditQForm({ ...editQForm, correctAnswer: e.target.value })} className="flex-1 h-7 px-2 rounded-lg border border-slate-200 text-xs outline-none" placeholder="Correct answer label (e.g. A)" />
+                                    </div>
+                                  </div>
+                                )}
+                                {editQForm.type === "written" && (
+                                  <div className="space-y-1.5">
+                                    <input value={editQForm.correctAnswer} onChange={(e) => setEditQForm({ ...editQForm, correctAnswer: e.target.value })} className="w-full h-7 px-2 rounded-lg border border-slate-200 text-xs outline-none" placeholder="Correct answer" />
+                                    <textarea value={editQForm.referenceAnswer} onChange={(e) => setEditQForm({ ...editQForm, referenceAnswer: e.target.value })} className="w-full h-16 px-2 py-1.5 rounded-lg border border-slate-200 text-xs outline-none resize-none" placeholder="Reference answer (optional)" />
+                                  </div>
+                                )}
+                                <div className="flex justify-end">
+                                  <button onClick={() => {
+                                    const payload = { ...editQForm, marks: Number(editQForm.marks), options: editQForm.type === "mcq" ? editQForm.options.filter((o) => o.text.trim()) : [] };
+                                    updateQMutation.mutate({ id: q._id, ...payload });
+                                  }} disabled={updateQMutation.isPending} className="h-7 px-3 rounded-lg text-[11px] font-bold text-white bg-[#0D9488] hover:shadow transition-all cursor-pointer disabled:opacity-50">
+                                    {updateQMutation.isPending ? "Saving..." : "Save"}
+                                  </button>
                                 </div>
                               </div>
-                              <button onClick={() => { if (confirm("Delete this question?")) deleteQMutation.mutate(q._id); }} className="h-7 w-7 rounded-lg hover:bg-red-50 flex items-center justify-center shrink-0 cursor-pointer"><Trash2 className="h-3.5 w-3.5 text-red-400" /></button>
-                            </div>
+                            ) : (
+                              <div key={q._id} className="flex items-start justify-between gap-3 bg-white rounded-lg border border-slate-200 px-4 py-2.5">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-slate-800">
+                                    <span className="text-slate-400 mr-1">{i + 1}.</span>
+                                    {q.questionText}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${q.type === "mcq" ? "bg-blue-50 text-blue-600" : "bg-amber-50 text-amber-600"}`}>{q.type}</span>
+                                    <span className="text-[10px] text-slate-400">{q.marks} marks</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                  <button onClick={() => {
+                                    setEditingQId(q._id);
+                                    setEditQForm({
+                                      type: q.type || "mcq",
+                                      questionText: q.questionText || "",
+                                      marks: String(q.marks || ""),
+                                      options: q.options?.length ? q.options.map((o) => ({ label: o.label, text: o.text })) : [],
+                                      correctAnswer: q.correctAnswer || "",
+                                      referenceAnswer: q.referenceAnswer || "",
+                                    });
+                                  }} className="h-7 w-7 rounded-lg hover:bg-blue-50 flex items-center justify-center cursor-pointer"><Pencil className="h-3.5 w-3.5 text-slate-400" /></button>
+                                  <button onClick={() => { if (confirm("Delete this question?")) deleteQMutation.mutate(q._id); }} className="h-7 w-7 rounded-lg hover:bg-red-50 flex items-center justify-center cursor-pointer"><Trash2 className="h-3.5 w-3.5 text-red-400" /></button>
+                                </div>
+                              </div>
+                            )
                           ))}
                         </div>
                       )}
