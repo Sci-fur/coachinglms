@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import client from "../../api/client";
+import { useToast } from "../../components/Toast";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
-import { Loader2, Search, Plus, GraduationCap, Clock, Users, Pencil, Trash2, X, MapPin, BookOpen } from "lucide-react";
+import { Loader2, Search, Plus, GraduationCap, Clock, Users, Pencil, Trash2, X, MapPin, BookOpen, Camera } from "lucide-react";
 
 const typeColors = {
   "college-admission": "from-violet-600 to-purple-700",
@@ -43,11 +44,14 @@ const defaultForm = {
 
 export default function AdminCourses() {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const thumbInputRef = useRef(null);
   const [search, setSearch] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [formError, setFormError] = useState("");
+  const [courseThumbnail, setCourseThumbnail] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
@@ -110,15 +114,33 @@ export default function AdminCourses() {
     },
   });
 
+  const thumbnailMutation = useMutation({
+    mutationFn: ({ courseId, file }) => {
+      const fd = new FormData();
+      fd.append("thumbnail", file);
+      return client.post(`/uploads/courses/${courseId}/thumbnail`, fd);
+    },
+    onSuccess: ({ data }) => {
+      setCourseThumbnail(data.data.thumbnail);
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      toast("Thumbnail updated", "success");
+    },
+    onError: (err) => {
+      toast(err.response?.data?.message || "Upload failed", "error");
+    },
+  });
+
   const openCreate = () => {
     setEditing(null);
     setForm(defaultForm);
+    setCourseThumbnail("");
     setFormError("");
     setDrawerOpen(true);
   };
 
   const openEdit = (course) => {
     setEditing(course._id);
+    setCourseThumbnail(course.thumbnail || "");
     setForm({
       name: course.name || "",
       subtitle: course.subtitle || "",
@@ -430,6 +452,39 @@ export default function AdminCourses() {
                     className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors"
                   />
                 </div>
+
+                {/* Thumbnail */}
+                {editing && (
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Thumbnail</h3>
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-28 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                        {courseThumbnail ? (
+                          <img src={courseThumbnail} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <GraduationCap className="h-6 w-6 text-slate-300" />
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={thumbnailMutation.isPending}
+                        onClick={() => thumbInputRef.current?.click()}
+                        className="h-9 px-4 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {thumbnailMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Camera className="h-3.5 w-3.5" />
+                        )}
+                        {courseThumbnail ? "Change" : "Upload"}
+                      </button>
+                      <input ref={thumbInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && editing) thumbnailMutation.mutate({ courseId: editing, file });
+                      }} />
+                    </div>
+                  </div>
+                )}
 
                 {/* Assignment */}
                 <div>

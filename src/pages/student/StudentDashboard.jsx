@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import useAuthStore from "../../store/authStore";
 import client from "../../api/client";
-import { MapPin, Clock, Users, GraduationCap, BookOpen, Loader2, Sparkles, TrendingUp, Check } from "lucide-react";
+import { useToast } from "../../components/Toast";
+import { MapPin, Clock, Users, GraduationCap, BookOpen, Loader2, Sparkles, TrendingUp, Check, Camera } from "lucide-react";
 
 const classLevels = [6, 7, 8, 9, 10, 11, 12];
 
@@ -55,8 +56,31 @@ function getClassLabel(c) {
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
+  const toast = useToast();
+  const fileInputRef = useRef(null);
   const [classFilter, setClassFilter] = useState("10");
   const [categoryFilter, setCategoryFilter] = useState("");
+
+  const photoUploadMutation = useMutation({
+    mutationFn: (file) => {
+      const fd = new FormData();
+      fd.append("photo", file);
+      return client.post("/uploads/profile-photo", fd);
+    },
+    onSuccess: ({ data }) => {
+      setUser({ ...user, profilePhoto: data.data.profilePhoto });
+      toast("Profile photo updated", "success");
+    },
+    onError: (err) => {
+      toast(err.response?.data?.message || "Upload failed", "error");
+    },
+  });
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) photoUploadMutation.mutate(file);
+  };
 
   const { data: courses, isLoading } = useQuery({
     queryKey: ["student-courses", classFilter, categoryFilter],
@@ -88,8 +112,28 @@ export default function StudentDashboard() {
 
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-teal-100" />
+            <div className="relative group">
+              <div className="h-10 w-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center overflow-hidden ring-2 ring-white/20">
+                {user?.profilePhoto?.url ? (
+                  <img src={user.profilePhoto.url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-teal-100" />
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={photoUploadMutation.isPending}
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm border border-white/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:opacity-50"
+                title="Upload photo"
+              >
+                {photoUploadMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-slate-600" />
+                ) : (
+                  <Camera className="h-3 w-3 text-slate-600" />
+                )}
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-white">
